@@ -35,6 +35,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # Local Apps
+    'api',
+    # Third Party Installed Apps
 ]
 
 MIDDLEWARE = [
@@ -119,3 +122,6 @@ STATIC_URL = '/static/'
 
 # Date Format from Task instructions
 DATE_INPUT_FORMATS = ['%Y-%d-%d']
+
+# Exchange Rate API KEy
+EXCHANGE_API_KEY = 'c87ba137ec93425d9eaf1695cc1608b2'
