@@ -95,15 +95,23 @@ def rates_null(request):
 
         # starting connection before loop to minimize time in starting and closing connection
         cursor = connection.cursor()
+        data = []
 
         # Loop Through all days from starting to end date.
+        while date_from <= date_to:
+            cursor.execute(
+                "SELECT AVG(p.price) as avgprice FROM  prices as p inner join (SELECT  prices.day from prices JOIN ports ON prices.orig_code=ports.code OR prices.dest_code=ports.code WHERE (prices.orig_code=%s OR ports.parent_slug=%s) AND (prices.dest_code=%s OR ports.parent_slug=%s) AND prices.day=%s GROUP BY prices.day HAVING COUNT(prices.price) >= 3) d on d.day=p.day group by p.day",
+                [origin, origin, destination, destination, date_from])
+            row = cursor.fetchone()
 
-        cursor.execute(
-            "SELECT  x.day, z.avgprice FROM ( SELECT generate_series(%s,%s, '1 day'::interval)::date as day) x LEFT OUTER JOIN (SELECT p.day, AVG(p.price) as avgprice FROM    prices p inner join (SELECT  day from prices JOIN ports ON prices.orig_code=ports.code WHERE (ports.code=%s OR ports.parent_slug=%s) AND (ports.code=%s OR ports.parent_slug=%s) AND day>=%s AND day<=%s GROUP BY day HAVING COUNT(price) > 3) d on d.day=p.day group by  p.day) AS z ON z.day = x.day",
-            [date_from, date_to, origin, origin, destination, destination, date_from, date_to])
-        row = cursor.fetchall()
+            data_internal = {
+                'day': date_from.strftime('%Y-%m-%d'),
+                'average_price': int(row[0]) if row else "Null",  # if no result found against parameters
+            }
+            data.append(data_internal)
 
-        data = row
+            # Increment the day
+            date_from = date_from + datetime.timedelta(days=1)
 
         # DB connection Close
         cursor.close()
