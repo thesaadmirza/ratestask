@@ -19,7 +19,7 @@ def validate(date_from, date_to):
     try:
         datetime.datetime.strptime(date_from, '%Y-%m-%d')
         datetime.datetime.strptime(date_to, '%Y-%m-%d')
-        if date_from < date_to:
+        if date_from <= date_to:
             return True
     except ValueError:
         return False
@@ -76,7 +76,7 @@ def rates_api(request):
         # Loop Through all days from starting to end date.
         while date_from <= date_to:
             cursor.execute(
-                "SELECT AVG(price) as avgprice  FROM prices JOIN ports ON prices.orig_code=ports.code OR prices.dest_code=ports.code WHERE (prices.orig_code=%s OR ports.parent_slug=%s) AND (prices.dest_code=%s OR ports.parent_slug=%s) AND day=%s",
+                "SELECT AVG(price) as avgprice FROM prices JOIN ports ON prices.orig_code=ports.code OR prices.dest_code=ports.code WHERE (prices.orig_code=%s OR ports.parent_slug=%s) AND (prices.dest_code=%s OR ports.parent_slug=%s) AND day=%s",
                 [origin, origin, destination, destination, date_from])
             row = cursor.fetchone()
 
