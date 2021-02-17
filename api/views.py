@@ -1,7 +1,9 @@
 import datetime
 
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.db import connection
+
+import json
 
 
 def validate(date_from, date_to):
@@ -39,8 +41,8 @@ def rates_api(request):
         if not result:
             return JsonResponse("Incorrect Date Format", safe=False, status=403)
 
-        date_from = datetime.datetime.strptime(date_from, '%Y-%m-%d')
-        date_to = datetime.datetime.strptime(date_to, '%Y-%m-%d')
+        date_from = datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
+        date_to = datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
 
         data = []
 
@@ -50,8 +52,8 @@ def rates_api(request):
         # Loop Through all days from starting to end date.
         while date_from <= date_to:
             cursor.execute(
-                "SELECT AVG(price) as avgprice  FROM prices JOIN ports ON prices.orig_code=ports.code WHERE (ports.code=%s OR ports.parent_slug=%s) AND (ports.code=%s OR ports.parent_slug=%s) AND day>=%s AND day<=%s",
-                [origin, origin, destination, destination, date_from, date_to])
+                "SELECT AVG(price) as avgprice  FROM prices JOIN ports ON prices.orig_code=ports.code OR prices.dest_code=ports.code WHERE (prices.orig_code=%s OR ports.parent_slug=%s) AND (prices.dest_code=%s OR ports.parent_slug=%s) AND day=%s",
+                [origin, origin, destination, destination, date_from])
             row = cursor.fetchone()
 
             data_internal = {
@@ -88,28 +90,20 @@ def rates_null(request):
         if not result:
             return JsonResponse("Incorrect Date Format", safe=False, status=403)
 
-        date_from = datetime.datetime.strptime(date_from, '%Y-%m-%d')
-        date_to = datetime.datetime.strptime(date_to, '%Y-%m-%d')
-
-        data = []
+        date_from = datetime.datetime.strptime(date_from, '%Y-%m-%d').date()
+        date_to = datetime.datetime.strptime(date_to, '%Y-%m-%d').date()
 
         # starting connection before loop to minimize time in starting and closing connection
         cursor = connection.cursor()
 
         # Loop Through all days from starting to end date.
-        while date_from <= date_to:
-            cursor.execute("SELECT AVG(p.price) as avgprice FROM    prices p inner join (SELECT  day from prices JOIN ports ON prices.orig_code=ports.code WHERE (ports.code=%s OR ports.parent_slug=%s) AND (ports.code=%s OR ports.parent_slug=%s) AND day>=%s AND day<=%s GROUP BY day HAVING COUNT(price) > 3) d on d.day=p.day group by  p.day",
-                [origin, origin, destination, destination, date_from, date_to])
-            row = cursor.fetchone()
 
-            data_internal = {
-                'day': date_from.strftime('%Y-%m-%d'),
-                'average_price': int(row[0]) if row[0] else "Null",  # if no result found against parameters
-            }
-            data.append(data_internal)
+        cursor.execute(
+            "SELECT  x.day, z.avgprice FROM ( SELECT generate_series(%s,%s, '1 day'::interval)::date as day) x LEFT OUTER JOIN (SELECT p.day, AVG(p.price) as avgprice FROM    prices p inner join (SELECT  day from prices JOIN ports ON prices.orig_code=ports.code WHERE (ports.code=%s OR ports.parent_slug=%s) AND (ports.code=%s OR ports.parent_slug=%s) AND day>=%s AND day<=%s GROUP BY day HAVING COUNT(price) > 3) d on d.day=p.day group by  p.day) AS z ON z.day = x.day",
+            [date_from, date_to, origin, origin, destination, destination, date_from, date_to])
+        row = cursor.fetchall()
 
-            # Increment the day
-            date_from = date_from + datetime.timedelta(days=1)
+        data = row
 
         # DB connection Close
         cursor.close()
